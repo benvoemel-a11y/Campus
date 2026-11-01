@@ -408,9 +408,13 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
   <p class="notice" id="notice" hidden></p>
   <div class="card" id="welcome" hidden>
     <h2>Willkommen bei Campus</h2>
-    <p class="sub" style="margin-top:2px">Auf diesem Gerät sind noch keine Daten. Lade deine Datei <b>campus-daten.json</b> oder ein Backup, dann ist alles wieder da.</p>
+    <p class="sub" style="margin-top:2px">Hol deine Lernzeiten, Fächer, Lernzettel und deinen Kalender aus der Claude-Version. Gib dafür dein Passwort ein.</p>
+    <div class="inline-add" style="margin-top:10px">
+      <input type="text" id="wl-pw" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passwort" aria-label="Passwort">
+      <button type="button" class="mini" id="wl-claude">Daten übernehmen</button>
+    </div>
     <div class="actions">
-      <button type="button" class="mini" id="wl-import">Daten laden</button>
+      <button type="button" class="mini ghost" id="wl-import">Backup-Datei laden</button>
       <button type="button" class="mini ghost" id="wl-skip">Leer starten</button>
     </div>
     <p class="msg" id="wl-msg" role="status" style="margin-top:8px"></p>
@@ -722,6 +726,14 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
         <button type="button" class="mini" id="bk-export">Backup herunterladen</button>
         <button type="button" class="mini ghost" id="bk-import">Backup laden</button>
         <input type="file" id="bk-file" accept=".json,application/json" hidden>
+      </div>
+      <div class="sec tight">
+        <h3>Daten aus Claude übernehmen</h3>
+        <p class="sub" style="margin-top:2px">Fügt deine Lernzeiten, Fächer, Lernzettel und deinen Kalender aus der Claude-Version hinzu. Was schon auf diesem Gerät ist, bleibt erhalten.</p>
+        <div class="inline-add">
+          <input type="text" id="bk-pw" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passwort" aria-label="Passwort">
+          <button type="button" class="mini" id="bk-claude">Übernehmen</button>
+        </div>
       </div>
       <p class="msg" id="bk-msg" role="status" style="margin-top:8px"></p>
     </section>
@@ -3307,7 +3319,51 @@ function readBackup(file,msgEl){
   r.readAsText(file);
 }
 var confirmImport=null;
+function b64(x){var s=atob(x),u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u}
+function mergeData(cur,inc){
+  var out=cur&&typeof cur==='object'?cur:{};
+  COLS.forEach(function(c){
+    var have=Array.isArray(out[c])?out[c]:[], ids={};
+    have.forEach(function(x){if(x&&x.id)ids[x.id]=1});
+    (inc[c]||[]).forEach(function(x){if(x&&x.id&&!ids[x.id])have.push(x)});
+    out[c]=have;
+  });
+  var subs=Array.isArray(out.subjects)?out.subjects.slice():[];
+  (inc.subjects||[]).forEach(function(n){if(subs.indexOf(n)<0)subs.push(n)});
+  out.subjects=subs;
+  var col=out.colors&&typeof out.colors==='object'?out.colors:{};
+  Object.keys(inc.colors||{}).forEach(function(k){if(col[k]==null)col[k]=inc.colors[k]});
+  out.colors=col;
+  if(!out.goals)out.goals=inc.goals||null;
+  return out;
+}
+function importFromClaude(pwEl,btn,msgEl){
+  var pw=pwEl.value.trim();
+  if(!pw){say(msgEl,'err','Gib das Passwort ein.');return}
+  if(!(window.crypto&&crypto.subtle)){say(msgEl,'err','Dieser Browser kann die Daten nicht entschlüsseln.');return}
+  btn.disabled=true;say(msgEl,'','Wird geladen …');
+  fetch('campus-daten.enc.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('net');return r.json()}).then(function(f){
+    var enc=new TextEncoder();
+    return crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']).then(function(base){
+      return crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(f.salt),iterations:250000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+    }).then(function(key){
+      return crypto.subtle.decrypt({name:'AES-GCM',iv:b64(f.iv)},key,b64(f.data)).catch(function(){throw new Error('pw')});
+    });
+  }).then(function(buf){
+    var inc=JSON.parse(new TextDecoder().decode(buf)), cur=null;
+    try{cur=JSON.parse(lsGet(LS_KEY)||'null')}catch(e){}
+    var merged=mergeData(cur,inc);delete merged._campus;
+    lsSet(LS_KEY,JSON.stringify(merged));lsSet('campus.started','1');
+    say(msgEl,'ok','Übernommen: '+(inc.sessions||[]).length+' Einträge, '+(inc.subjects||[]).length+' Fächer, '+(inc.notes||[]).length+' Lernzettel. Campus startet neu.');
+    setTimeout(function(){location.reload()},900);
+  }).catch(function(e){
+    btn.disabled=false;
+    say(msgEl,'err',e&&e.message==='pw'?'Das Passwort stimmt nicht.':'Die Daten ließen sich nicht laden. Prüf deine Internetverbindung.');
+  });
+}
 function initBackup(){
+  $('wl-claude').addEventListener('click',function(){importFromClaude($('wl-pw'),this,$('wl-msg'))});
+  $('bk-claude').addEventListener('click',function(){importFromClaude($('bk-pw'),this,$('bk-msg'))});
   $('bk-export').addEventListener('click',function(){
     var raw=lsGet(LS_KEY)||'{}', p={};
     try{p=JSON.parse(raw)}catch(e){}
