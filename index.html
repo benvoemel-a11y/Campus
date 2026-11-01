@@ -79,6 +79,9 @@ body{background:var(--bg);color:var(--label);font-family:var(--font);font-size:1
 .eyebrow{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--label2);margin:0}
 h1{font-size:28px;line-height:1.1;font-weight:700;letter-spacing:-.02em;margin:0}
 .title-row{display:flex;align-items:center;gap:10px}
+.cloud-dot{width:8px;height:8px;border-radius:50%;background:var(--label3);flex:none;order:3}
+.cloud-dot.ok{background:var(--green)}
+.cloud-dot.err{background:var(--red-text)}
 .avatar{font:inherit;width:32px;height:32px;border-radius:50%;border:0;background:#D9541F;color:#fff;font-size:15px;font-weight:700;display:inline-grid;place-items:center;cursor:pointer;flex:none;padding:0;line-height:1}
 .avatar[aria-pressed="true"]{box-shadow:0 0 0 2px var(--bg),0 0 0 4px #D9541F}
 .avatar.lg{width:56px;height:56px;font-size:24px;cursor:default}
@@ -406,7 +409,7 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
   <div class="top">
     <header class="head">
       <p class="eyebrow" id="today-label">Heute</p>
-      <div class="title-row"><h1>Campus</h1><button type="button" class="avatar" id="hd-avatar" data-view="profile" aria-pressed="false" aria-label="Profil öffnen">?</button></div>
+      <div class="title-row"><h1>Campus</h1><span class="cloud-dot" id="hd-cloud" hidden></span><button type="button" class="avatar" id="hd-avatar" data-view="profile" aria-pressed="false" aria-label="Profil öffnen">?</button></div>
     </header>
     <div class="seg tabs" role="group" aria-label="Bereich">
       <button type="button" data-view="start" aria-pressed="true">Start</button>
@@ -420,7 +423,12 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
   <p class="notice" id="notice" hidden></p>
   <div class="card" id="welcome" hidden>
     <h2>Willkommen bei Campus</h2>
-    <p class="sub" style="margin-top:2px">Hol deine Lernzeiten, Fächer, Lernzettel und deinen Kalender aus der Claude-Version. Gib dafür dein Passwort ein.</p>
+    <p class="sub" style="margin-top:2px">Gib deinen Speicher-Code ein. Dann sind deine Daten da und werden ab jetzt automatisch online gespeichert.</p>
+    <div class="inline-add" style="margin-top:10px">
+      <input type="text" id="wl-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Speicher-Code" aria-label="Speicher-Code">
+      <button type="button" class="mini" id="wl-connect">Verbinden</button>
+    </div>
+    <p class="sub" style="margin-top:12px">Oder einmalig aus der Claude-Version übernehmen (Passwort):</p>
     <div class="inline-add" style="margin-top:10px">
       <input type="text" id="wl-pw" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passwort" aria-label="Passwort">
       <button type="button" class="mini" id="wl-claude">Daten übernehmen</button>
@@ -715,6 +723,25 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
         <h2 id="pf-hello">Dein Profil</h2>
         <p class="sub" id="pf-since"></p>
       </div>
+    </section>
+    <section class="card" id="cloud-card">
+      <h2>Online speichern</h2>
+      <div id="cl-off">
+        <p class="sub" style="margin-top:2px">Mit deinem Speicher-Code werden alle Daten automatisch online gespeichert und erscheinen auf iPhone und Mac gleich. Gib den Code auf jedem Gerät einmal ein.</p>
+        <div class="inline-add" style="margin-top:10px">
+          <input type="text" id="cl-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Speicher-Code" aria-label="Speicher-Code">
+          <button type="button" class="mini" id="cl-connect">Verbinden</button>
+        </div>
+        <p class="msg" id="cl-msg" role="status" style="margin-top:8px"></p>
+      </div>
+      <div id="cl-on" hidden>
+        <p class="sub" style="margin-top:2px">Alles, was du einträgst, wird automatisch online gespeichert. Code: <b id="cl-code-show"></b></p>
+        <div class="actions">
+          <button type="button" class="mini ghost" id="cl-now">Jetzt speichern</button>
+          <button type="button" class="textbtn back" id="cl-off-btn">Trennen</button>
+        </div>
+      </div>
+      <p class="msg" id="cl-status" role="status" style="margin-top:8px"></p>
     </section>
     <section class="row even">
       <div class="card">
@@ -2532,6 +2559,108 @@ function saveFile(name,text,type){
   return Promise.resolve();
 }
 
+/* ---------- online saving ---------- */
+var SB_URL='https://pakdmaofkuuahrohigdt.supabase.co', SB_KEY='sb_publishable_MlvCc2U09_J95ivnxL4qEw_OsACmhOl';
+var cloud={timer:0,busy:false,getLocal:null,replace:null};
+function cloudCode(){return (lsGet('campus.sync')||'').trim()}
+function rpc(name,body){
+  return fetch(SB_URL+'/rest/v1/rpc/'+name,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json()});
+}
+var timeFmt=new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit'});
+function cloudStatus(kind,text){
+  var el=$('cl-status');if(el){el.textContent=text;el.className='msg'+(kind?' '+kind:'')}
+  var d=$('hd-cloud');if(d){d.hidden=!cloudCode();d.className='cloud-dot '+(kind||'');d.title=text}
+}
+function cloudPaint(){
+  var on=!!cloudCode();
+  $('cl-off').hidden=on;$('cl-on').hidden=!on;
+  if(on)$('cl-code-show').textContent=cloudCode();
+  else cloudStatus('','Nicht verbunden. Deine Daten liegen nur auf diesem Gerät.');
+}
+cloud.changed=function(){
+  if(!cloudCode())return;
+  lsSet('campus.dirty','1');
+  cloudStatus('','Wird gespeichert …');
+  clearTimeout(cloud.timer);cloud.timer=setTimeout(cloud.push,1200);
+};
+cloud.push=function(){
+  if(!cloudCode()||!cloud.getLocal)return Promise.resolve();
+  if(cloud.busy){clearTimeout(cloud.timer);cloud.timer=setTimeout(cloud.push,800);return Promise.resolve()}
+  cloud.busy=true;
+  return rpc('campus_push',{p_code:cloudCode(),p_data:cloud.getLocal()}).then(function(ts){
+    if(!ts)throw new Error('code');
+    lsSet('campus.syncAt',ts);lsSet('campus.dirty',null);
+    cloudStatus('ok','Online gespeichert um '+timeFmt.format(new Date(ts)));
+  }).catch(function(e){
+    cloudStatus('err',e&&e.message==='code'?'Der Code stimmt nicht. Verbinde dich im Profil neu.':'Offline. Wird gespeichert, sobald du Internet hast.');
+  }).then(function(){cloud.busy=false});
+};
+cloud.pull=function(){
+  if(!cloudCode()||!cloud.getLocal||cloud.busy)return Promise.resolve();
+  cloud.busy=true;
+  return rpc('campus_pull',{p_code:cloudCode()}).then(function(rows){
+    cloud.busy=false;
+    var row=rows&&rows[0];
+    if(!row)throw new Error('code');
+    var remoteAt=row.updated_at, localAt=lsGet('campus.syncAt')||'', dirty=lsGet('campus.dirty')==='1';
+    var remote=row.data&&typeof row.data==='object'?row.data:{};
+    var remoteHas=Object.keys(remote).length>0;
+    if(remoteHas&&new Date(remoteAt)>new Date(localAt||0)){
+      if(dirty){cloud.replace(mergeData(JSON.parse(JSON.stringify(cloud.getLocal())),remote));return cloud.push()}
+      cloud.replace(remote);lsSet('campus.syncAt',remoteAt);
+      cloudStatus('ok','Aktuell · geladen um '+timeFmt.format(new Date()));
+      return;
+    }
+    if(dirty||!remoteHas)return cloud.push();
+    cloudStatus('ok','Aktuell · zuletzt gespeichert um '+timeFmt.format(new Date(remoteAt)));
+  }).catch(function(e){
+    cloud.busy=false;
+    cloudStatus('err',e&&e.message==='code'?'Der Code stimmt nicht. Verbinde dich im Profil neu.':'Offline. Deine Daten sind auf diesem Gerät gespeichert.');
+  });
+};
+cloud.start=function(){
+  cloudPaint();
+  if(!cloudCode())return;
+  cloud.pull();
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')cloud.pull();else if(lsGet('campus.dirty')==='1')cloud.push()});
+  window.addEventListener('online',function(){cloud.pull()});
+  setInterval(function(){if(document.visibilityState==='visible'&&!cloud.busy)cloud.pull()},60000);
+};
+function cloudConnect(codeEl,btn,msgEl){
+  var code=codeEl.value.toUpperCase().replace(/\s+/g,'').trim();
+  if(code.length<8){say(msgEl,'err','Gib deinen Speicher-Code ein.');return}
+  btn.disabled=true;say(msgEl,'','Wird verbunden …');
+  rpc('campus_pull',{p_code:code}).then(function(rows){
+    if(!rows||!rows[0])throw new Error('code');
+    var remote=rows[0].data||{}, local=JSON.parse(JSON.stringify(cloud.getLocal()||{}));
+    lsSet('campus.sync',code);lsSet('campus.started','1');
+    var merged=Object.keys(remote).length?mergeData(local,remote):local;
+    cloud.replace(merged);
+    lsSet('campus.dirty','1');
+    return cloud.push().then(function(){
+      say(msgEl,'ok','Verbunden. Deine Daten werden ab jetzt online gespeichert.');
+      $('welcome').hidden=true;cloudPaint();
+      setTimeout(function(){location.reload()},900);
+    });
+  }).catch(function(e){
+    btn.disabled=false;
+    say(msgEl,'err',e&&e.message==='code'?'Diesen Code gibt es nicht. Prüf die Schreibweise.':'Keine Verbindung. Prüf dein Internet und versuch es noch einmal.');
+  });
+}
+function initCloud(){
+  $('cl-connect').addEventListener('click',function(){cloudConnect($('cl-code'),this,$('cl-msg'))});
+  $('wl-connect').addEventListener('click',function(){cloudConnect($('wl-code'),this,$('wl-msg'))});
+  $('cl-now').addEventListener('click',function(){lsSet('campus.dirty','1');cloud.push()});
+  var arm=0;
+  $('cl-off-btn').addEventListener('click',function(){
+    var b=this;
+    if(!arm){arm=1;b.textContent='Wirklich trennen?';setTimeout(function(){arm=0;b.textContent='Trennen'},3500);return}
+    lsSet('campus.sync',null);lsSet('campus.syncAt',null);lsSet('campus.dirty',null);arm=0;b.textContent='Trennen';cloudPaint();
+    var d=$('hd-cloud');if(d)d.hidden=true;
+  });
+}
+
 /* ---------- profile ---------- */
 function userName(){return (lsGet('campus.name')||'').trim()}
 function greeting(){var n=userName();return n?'Hallo '+n+' · ':''}
@@ -3321,7 +3450,16 @@ function startLocal(){
       }
     }
   }catch(e){}
-  function persist(){lsSet(LS_KEY,JSON.stringify(L));lsSet('campus.started','1');try{backupStats()}catch(e){}}
+  function persist(quiet){lsSet(LS_KEY,JSON.stringify(L));lsSet('campus.started','1');try{backupStats()}catch(e){}if(!quiet)cloud.changed()}
+  cloud.getLocal=function(){return L};
+  cloud.replace=function(data){
+    COLS.forEach(function(c){L[c]=Array.isArray(data[c])?data[c]:[]});
+    L.subjects=Array.isArray(data.subjects)?data.subjects:[];L.colors=data.colors||{};L.goals=data.goals||null;
+    persist(true);
+    applyGoals(Array.isArray(L.goals)?{minutes:L.goals}:L.goals);
+    subjects=cleanSubjects(L.subjects);subjColors=cleanColors(L.colors,subjects);
+    sync();
+  };
   function sync(){
     COLS.forEach(function(c){setCol(c,L[c].map(function(x){return CLEAN[c](x.id,x)}).filter(VALID[c]))});
     renderAll();
@@ -3335,6 +3473,7 @@ function startLocal(){
   subjects=cleanSubjects(L.subjects);subjColors=cleanColors(L.colors,subjects);
   loaded.subjects=loaded.topics=true;
   setReady();sync();
+  cloud.start();
 }
 function startDb(db){
   var goalDoc=db.doc('settings/goals'), subjDoc=db.doc('settings/subjects');
@@ -3462,6 +3601,7 @@ function initBackup(){
 }
 
 function boot(){
+  initCloud();
   initBackup();
   initProfile();
   var p;
