@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Campus</title>
 <meta name="description" content="Campus – Lernzeit, Lernzettel, Karteikarten und Lernkalender">
 <link rel="manifest" href="manifest.webmanifest">
@@ -14,9 +14,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<script>try{var t=localStorage.getItem('campus.theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html,body{margin:0}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{background:#F2F2F7}
 @media (prefers-color-scheme: dark){body{background:#000}}
 [hidden]{display:none!important}
@@ -76,6 +78,11 @@ body{background:var(--bg);color:var(--label);font-family:var(--font);font-size:1
 .head{display:flex;flex-direction:column;gap:1px}
 .eyebrow{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--label2);margin:0}
 h1{font-size:28px;line-height:1.1;font-weight:700;letter-spacing:-.02em;margin:0}
+.title-row{display:flex;align-items:center;gap:10px}
+.avatar{font:inherit;width:32px;height:32px;border-radius:50%;border:0;background:#D9541F;color:#fff;font-size:15px;font-weight:700;display:inline-grid;place-items:center;cursor:pointer;flex:none;padding:0;line-height:1}
+.avatar[aria-pressed="true"]{box-shadow:0 0 0 2px var(--bg),0 0 0 4px #D9541F}
+.avatar.lg{width:56px;height:56px;font-size:24px;cursor:default}
+.profile-head{display:flex;align-items:center;gap:14px}
 .notice{margin:0;padding:10px 14px;border-radius:var(--r-ctl);background:var(--card);border:1px solid var(--sep);color:var(--label2);font-size:14px}
 
 /* Cards */
@@ -129,7 +136,12 @@ form{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .field label span,.lab span{font-weight:400}
 input[type="date"],input[type="text"],input.plain,select,textarea{font:inherit;font-size:16px;color:var(--label);background:var(--fill);border:0;border-radius:var(--r-ctl);padding:9px 11px;width:100%;min-width:0}
 textarea{resize:vertical;line-height:1.45;display:block}
-.dur{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+input[type="date"],select{height:44px;max-width:100%;display:block}
+input[type="date"]{-webkit-appearance:none;appearance:none;text-align:left;line-height:1.5}
+input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0}
+input[type="date"]::-webkit-calendar-picker-indicator{margin:0}
+.dur{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.dur>*{min-width:0}
 .durbox{background:var(--fill);border-radius:var(--r-ctl);padding:7px 11px;display:flex;align-items:baseline;gap:6px;min-width:0}
 .durbox input{font-family:var(--round);font-weight:700;font-size:24px;line-height:1.1;color:var(--label);background:transparent;border:0;width:100%;min-width:0;padding:0;text-align:right;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
 .durbox input::-webkit-outer-spin-button,.durbox input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
@@ -253,7 +265,7 @@ li.done .li-date{text-decoration:line-through;color:var(--label2)}
 .goals{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
 .goal-cell{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
 .goal-cell label{font-size:12px;font-weight:600;color:var(--label2)}
-.goal-cell input{font-family:var(--round);font-size:15px;font-weight:600;color:var(--label);background:var(--fill);border:0;border-radius:9px;padding:8px 2px;width:100%;min-width:0;text-align:center;-moz-appearance:textfield;appearance:textfield}
+.goal-cell input{font-family:var(--round);font-size:16px;font-weight:600;color:var(--label);background:var(--fill);border:0;border-radius:9px;padding:8px 2px;width:100%;min-width:0;text-align:center;-moz-appearance:textfield;appearance:textfield}
 .goal-cell input::-webkit-outer-spin-button,.goal-cell input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .stack{display:flex;flex-direction:column;gap:12px}
 .goal-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:10px 20px;margin-top:10px;align-items:start}
@@ -394,7 +406,7 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
   <div class="top">
     <header class="head">
       <p class="eyebrow" id="today-label">Heute</p>
-      <h1>Campus</h1>
+      <div class="title-row"><h1>Campus</h1><button type="button" class="avatar" id="hd-avatar" data-view="profile" aria-pressed="false" aria-label="Profil öffnen">?</button></div>
     </header>
     <div class="seg tabs" role="group" aria-label="Bereich">
       <button type="button" data-view="start" aria-pressed="true">Start</button>
@@ -693,6 +705,36 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
       </div>
     </section>
 
+  </div>
+
+  <!-- ================= Profil ================= -->
+  <div class="view" id="view-profile" hidden>
+    <section class="card profile-head">
+      <span class="avatar lg" id="pf-avatar" aria-hidden="true">?</span>
+      <div style="min-width:0">
+        <h2 id="pf-hello">Dein Profil</h2>
+        <p class="sub" id="pf-since"></p>
+      </div>
+    </section>
+    <section class="row even">
+      <div class="card">
+        <h2>Name</h2>
+        <div class="inline-add" style="margin-top:10px">
+          <input type="text" id="pr-name" maxlength="30" autocomplete="given-name" placeholder="Wie heißt du?" aria-label="Dein Name">
+          <button type="button" class="mini" id="pr-name-ok">Speichern</button>
+        </div>
+        <p class="msg" id="pr-name-msg" role="status" style="margin-top:8px"></p>
+      </div>
+      <div class="card">
+        <h2>Darstellung</h2>
+        <div class="seg wide" role="group" aria-label="Hell oder dunkel" id="pr-theme" style="margin-top:10px">
+          <button type="button" data-v="auto" aria-pressed="true">Automatisch</button>
+          <button type="button" data-v="light" aria-pressed="false">Hell</button>
+          <button type="button" data-v="dark" aria-pressed="false">Dunkel</button>
+        </div>
+        <p class="sub" style="margin-top:8px">Automatisch folgt der Einstellung deines Geräts.</p>
+      </div>
+    </section>
     <section class="card">
       <h2>Meine Lernziele</h2>
       <p class="sub" id="g-summary" style="margin-top:1px"></p>
@@ -717,7 +759,6 @@ input[type="text"].note-title{font-size:22px;font-weight:700;letter-spacing:-.01
       </div>
       <p class="msg" id="g-msg" role="status" style="margin-top:8px"></p>
     </section>
-
     <section class="card" id="backup-card">
       <h2>Daten und Backup</h2>
       <p class="sub" style="margin-top:2px">Deine Daten liegen nur auf diesem Gerät in diesem Browser. Lade ab und zu ein Backup herunter. Mit dem Backup bringst du alles auch auf ein anderes Gerät.</p>
@@ -1067,7 +1108,7 @@ var REACHED={yes:'Ziel erreicht',partly:'Ziel teilweise erreicht',no:'Ziel nicht
 var DEFAULT_GOALS=[90,90,90,90,120,180,180];
 var LS_KEY='lernzeit.v1', LS_SUBJ='lernzeit.lastSubject', LS_SEL='lernzeit.sel', LS_TIMER='lernzeit.timer', LS_FOLD='lernzeit.cardsFolded', LS_CAL='lernzeit.calMode';
 var COLS=['sessions','deadlines','topics','notes','cards','plan'];
-var HASH={start:'start',home:'zeiten',learn:'lernen',plan:'kalender',stats:'verlauf'};
+var HASH={start:'start',home:'zeiten',learn:'lernen',plan:'kalender',stats:'verlauf',profile:'profil'};
 var INTERVALS=[0,1,2,4,8,16];   /* days until a card in box 1..5 comes back */
 var MAX_DEPTH=4;
 
@@ -1543,7 +1584,7 @@ function initSession(){
       say($('ss-msg'),'err','Die Einheit wurde nicht gespeichert. Tippe noch einmal auf Eintragen.');
     }).then(function(){btn.disabled=false});
   });
-  $('t-goals').addEventListener('click',function(){setView('home');$('g-0').focus()});
+  $('t-goals').addEventListener('click',function(){setView('profile');$('g-0').focus()});
   $('b-cards-go').addEventListener('click',function(){
     setView('learn');
     Promise.resolve(mode==='note'?closeNote():null).then(function(){startStudy('','',true)});
@@ -2491,6 +2532,43 @@ function saveFile(name,text,type){
   return Promise.resolve();
 }
 
+/* ---------- profile ---------- */
+function userName(){return (lsGet('campus.name')||'').trim()}
+function greeting(){var n=userName();return n?'Hallo '+n+' · ':''}
+function paintProfile(){
+  var n=userName(), ini=n?n.charAt(0).toUpperCase():'?';
+  $('hd-avatar').textContent=ini;$('pf-avatar').textContent=ini;
+  $('pf-hello').textContent=n?'Hallo '+n:'Dein Profil';
+  $('pf-since').textContent=n?'Schön, dass du lernst.':'Gib dir unten einen Namen.';
+  $('today-label').textContent=greeting()+dfHead.format(today());
+  var t=lsGet('campus.theme')||'auto';
+  Array.prototype.forEach.call($('pr-theme').children,function(b){b.setAttribute('aria-pressed',String(b.dataset.v===t))});
+}
+function applyTheme(t){
+  var r=document.documentElement;
+  if(t==='light'||t==='dark')r.setAttribute('data-theme',t);else r.removeAttribute('data-theme');
+  var dark=t==='dark'||(t!=='light'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);
+  Array.prototype.forEach.call(document.querySelectorAll('meta[name="theme-color"]'),function(m){m.setAttribute('content',dark?'#000000':'#F2F2F7');m.removeAttribute('media')});
+  document.body.style.background=dark?'#000':'#F2F2F7';
+  r.style.colorScheme=dark?'dark':'light';
+}
+function initProfile(){
+  $('pr-name').value=userName();
+  function saveName(){
+    var n=$('pr-name').value.replace(/\s+/g,' ').trim().slice(0,30);
+    lsSet('campus.name',n||null);paintProfile();
+    say($('pr-name-msg'),'ok',n?'Gespeichert. Hallo '+n+'!':'Name entfernt.');
+  }
+  $('pr-name-ok').addEventListener('click',saveName);
+  onEnter($('pr-name'),saveName);
+  $('pr-theme').addEventListener('click',function(ev){
+    var b=ev.target.closest('button');if(!b)return;
+    lsSet('campus.theme',b.dataset.v==='auto'?null:b.dataset.v);applyTheme(b.dataset.v);paintProfile();
+  });
+  applyTheme(lsGet('campus.theme')||'auto');
+  paintProfile();
+}
+
 /* ---------- Lernen: folders ---------- */
 function addTopic(){
   if(!ready||!sel.subject)return;
@@ -3385,6 +3463,7 @@ function initBackup(){
 
 function boot(){
   initBackup();
+  initProfile();
   var p;
   try{p=window.claude&&typeof window.claude.use==='function'?window.claude.use('db'):Promise.resolve(null)}catch(e){p=Promise.resolve(null)}
   Promise.resolve(p).catch(function(){return null}).then(function(db){if(db)startDb(db);else startLocal()});
@@ -3395,7 +3474,7 @@ function tickDay(){
   var k=ymd(today());
   if(k===lastDay)return;
   lastDay=k;
-  $('today-label').textContent=dfHead.format(today());
+  $('today-label').textContent=greeting()+dfHead.format(today());
   $('f-date').max=k;
   renderAll();
 }
@@ -3455,6 +3534,9 @@ boot();
 </script>
 
 <script>
+/* no zooming inside the app: pinch and double tap */
+['gesturestart','gesturechange','gestureend'].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault()},{passive:false})});
+document.addEventListener('touchmove',function(e){if(e.scale!==undefined&&e.scale!==1)e.preventDefault()},{passive:false});
 if('serviceWorker' in navigator&&location.protocol==='https:'){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
 </script>
 </body>
