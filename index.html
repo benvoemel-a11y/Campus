@@ -2588,12 +2588,15 @@ cloud.push=function(){
   if(!cloudCode()||!cloud.getLocal)return Promise.resolve();
   if(cloud.busy){clearTimeout(cloud.timer);cloud.timer=setTimeout(cloud.push,800);return Promise.resolve()}
   cloud.busy=true;
-  return rpc('campus_push',{p_code:cloudCode(),p_data:cloud.getLocal()}).then(function(ts){
+  var b64;
+  try{b64=btoa(unescape(encodeURIComponent(JSON.stringify(cloud.getLocal()))))}catch(e){cloud.busy=false;cloudStatus('err','Speichern fehlgeschlagen ('+e.message+')');return Promise.resolve()}
+  return rpc('campus_push_b64',{p_code:cloudCode(),p_b64:b64}).then(function(ts){
     if(!ts)throw new Error('code');
     lsSet('campus.syncAt',ts);lsSet('campus.dirty',null);
     cloudStatus('ok','Online gespeichert um '+timeFmt.format(new Date(ts)));
   }).catch(function(e){
-    cloudStatus('err',e&&e.message==='code'?'Der Code stimmt nicht. Verbinde dich im Profil neu.':'Offline. Wird gespeichert, sobald du Internet hast.');
+    cloudStatus('err',e&&e.message==='code'?'Der Code stimmt nicht. Verbinde dich im Profil neu.':'Noch nicht online gespeichert ('+(e&&e.message||'Fehler')+'). Neuer Versuch läuft automatisch.');
+    clearTimeout(cloud.timer);cloud.timer=setTimeout(cloud.push,15000);
   }).then(function(){cloud.busy=false});
 };
 cloud.pull=function(){
@@ -2623,9 +2626,20 @@ cloud.start=function(){
   cloudPaint();
   if(!cloudCode())return;
   cloud.pull();
-  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')cloud.pull();else if(lsGet('campus.dirty')==='1')cloud.push()});
-  window.addEventListener('online',function(){cloud.pull()});
-  setInterval(function(){if(document.visibilityState==='visible'&&!cloud.busy)cloud.pull()},60000);
+  var lastCheck=0;
+  function check(force){
+    if(cloud.busy||document.visibilityState!=='visible')return;
+    var now=Date.now();if(!force&&now-lastCheck<4000)return;lastCheck=now;
+    if(lsGet('campus.dirty')==='1'){cloud.push();return}
+    rpc('campus_stamp',{p_code:cloudCode()}).then(function(ts){
+      if(ts&&new Date(ts)>new Date(lsGet('campus.syncAt')||0))cloud.pull();
+    }).catch(function(){});
+  }
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')check(true);else if(lsGet('campus.dirty')==='1')cloud.push()});
+  window.addEventListener('focus',function(){check(true)});
+  window.addEventListener('pageshow',function(){check(true)});
+  window.addEventListener('online',function(){check(true)});
+  setInterval(function(){check(false)},8000);
 };
 function cloudConnect(codeEl,btn,msgEl){
   var code=codeEl.value.toUpperCase().replace(/\s+/g,'').trim();
